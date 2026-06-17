@@ -1,0 +1,102 @@
+# ── Python & Virtual Environments ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ── Conda ──
+.conda/
+conda-env.yml
+.condarc
+
+# ── IDE & Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.env
+.env.local
+
+# ── Jupyter & Notebooks ──
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.nbstripout
+
+# ── Data & Datasets ──
+data/billsum_processed/
+data/*.arrow
+data/*.parquet
+*.csv
+!results/metrics.csv
+
+# ── Model Checkpoints & Weights ──
+runs/
+models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+checkpoint-*/
+
+# ── Weights & Biases ──
+wandb/
+*.wandb
+
+# ── Hugging Face Cache ──
+.cache/
+~/.cache/huggingface/
+huggingface_cache/
+
+# ── Logs & Output ──
+logs/
+*.log
+tensorboard/
+runs/
+output/
+outputs/
+
+# ── OS & System ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.directory
+
+# ── Temporary Files ──
+*.tmp
+*.temp
+*.bak
+.gitkeep_temp
+
+# ── Specific to this project ──
+# Don't commit large HF model cache (regenerable from HF Hub)
+/hf_cache/
+# Don't commit raw dataset downloads (regenerable via data/prepare.py)
+/data/raw/
+# Archive files from cloud downloads
+*.tar.gz
+*.zip
+# Local test runs / debugging
+/test_runs/
+/scratch/

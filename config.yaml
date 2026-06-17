@@ -1,0 +1,63 @@
+# ~/peft-compare/config.yaml
+# v5 — retrain config for the rented 24GB instance. Changes from the original
+# 4GB-card config (see HANDOFF v4):
+#   1. training.max_seq_length: 256 -> 1024 (measured p95 total length = 943 tokens;
+#      256 silently truncated the "### Summary:" marker for most examples)
+#   2. model.load_in_4bit is now per-method instead of one global flag, so LoRA/DoRA
+#      run against a full-precision base (textbook comparison) while QLoRA keeps its
+#      4-bit NF4 + double-quant base (that quantization IS the method, not a VRAM hack)
+#   3. training.batch_size/gradient_accumulation_steps rebalanced from (1, 8) to (8, 1):
+#      same effective batch of 8, but as one true batch instead of 8 accumulated
+#      micro-batches -- faster wall-clock, and there's room for it on 24GB.
+#
+# To switch methods: change ONLY the `method` key below. output_dir and the W&B
+# run name are derived from `method` automatically in train.py -- nothing else in
+# this file needs to change between the three runs (this is the one thing that
+# silently went wrong before: forgetting to bump output_dir/run_name between runs
+# risks overwriting a previous checkpoint).
+
+model:
+  name: "microsoft/Phi-3-mini-4k-instruct"
+  load_in_4bit:
+    lora: false    # full-precision (bf16) base
+    qlora: true    # 4-bit NF4 + double quant -- this quantization is the QLoRA method itself
+    dora: false    # full-precision (bf16) base
+
+method: "lora"      # <-- the only field to change between runs: lora | qlora | dora
+
+peft:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+  lora_dropout: 0.05
+  bias: "none"
+
+training:
+  batch_size: 8                     # was 1 -- true batch, see note above
+  gradient_accumulation_steps: 1     # was 8 -- effective batch stays 8
+  learning_rate: 2.0e-4
+  max_steps: 500
+  warmup_steps: 50
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true       # KEEP true even on 24GB -- without it, full-precision
+                                      # LoRA/DoRA at batch=8/seq=1024 is estimated to exceed
+                                      # 24GB (no flash-attn in this env, so attention memory
+                                      # scales with seq_len^2 if all layers' activations are
+                                      # held at once instead of just checkpoint boundaries)
+  max_seq_length: 1024               # was 256 -- measured p95 total (doc+summary) = 943
+  save_steps: 500
+  logging_steps: 10
+  eval_steps: 100
+  dataloader_num_workers: 4          # was 0 (that was a WSL2-specific workaround; safe to
+                                      # raise on the native Linux cloud instance)
+  dataloader_pin_memory: true
+
+data:
+  path: "data/billsum_processed"
+  text_field: "text"
+
+logging:
+  wandb_project: "peft-compare"
+  wandb_group: "phi3-billsum-retrain-v2"   # new group, keeps these separate in the W&B
+                                            # dashboard from the superseded 256-token runs
