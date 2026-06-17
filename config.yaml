@@ -23,7 +23,7 @@ model:
     qlora: true    # 4-bit NF4 + double quant -- this quantization is the QLoRA method itself
     dora: false    # full-precision (bf16) base
 
-method: "lora"      # <-- the only field to change between runs: lora | qlora | dora
+method: "dora"      # <-- the only field to change between runs: lora | qlora | dora
 
 peft:
   r: 16

@@ -1,0 +1,4 @@
+method,rouge_l,peak_vram_gb,n_eval_samples
+lora,0.3101,10.824,200
+qlora,0.3079,5.466,200
+dora,0.3071,10.824,200

@@ -12,10 +12,9 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-    TrainingArguments,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -67,7 +66,7 @@ def load_model_and_tokenizer(cfg: dict):
         quantization_config=bnb_cfg,
         device_map="auto",
         torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
 
     if use_4bit:
@@ -100,7 +99,7 @@ def load_model_and_tokenizer(cfg: dict):
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=False)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
@@ -162,7 +161,7 @@ def main():
     model, tokenizer = load_model_and_tokenizer(cfg)
 
     # Training arguments
-    training_args = TrainingArguments(
+    training_args = SFTConfig(
         output_dir=output_dir,
         per_device_train_batch_size=t_cfg["batch_size"],
         gradient_accumulation_steps=t_cfg["gradient_accumulation_steps"],
@@ -189,15 +188,15 @@ def main():
                                            # On 24GB there's nothing left for paging to buy
                                            # us; the fused kernel is the faster choice now.
         dataloader_pin_memory=t_cfg.get("dataloader_pin_memory", True),
+        dataset_text_field=cfg["data"]["text_field"],
+        max_length=t_cfg["max_seq_length"],
     )
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        dataset_text_field=cfg["data"]["text_field"],
-        max_seq_length=t_cfg["max_seq_length"],
         args=training_args,
     )
 

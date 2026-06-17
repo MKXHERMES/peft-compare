@@ -48,11 +48,11 @@ def load_model_for_eval(base_model_name: str, checkpoint_path: str, method: str,
         quantization_config=bnb_cfg,
         device_map="auto",
         torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
     model = PeftModel.from_pretrained(base, checkpoint_path)
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_code=False)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"  # required for correct batched generation (decoder-only)
@@ -183,7 +183,7 @@ def evaluate_method(method: str, base_model_name: str, test_ds, use_4bit: bool, 
         "rouge_l": round(avg_rouge_l, 4),
         "peak_vram_gb": round(peak_vram, 3),
         "n_eval_samples": n_eff,
-    }
+    }, scores
 
 
 def main():
@@ -218,15 +218,17 @@ def main():
 
     os.makedirs("results", exist_ok=True)
     results = []
+    per_method_scores = {}
 
     for method in args.methods:
         if not os.path.exists(METHODS[method]["checkpoint"]):
             print(f"[skip] {method} checkpoint not found at {METHODS[method]['checkpoint']}")
             continue
-        result = evaluate_method(method, args.base_model, test_ds, use_4bit=bit_map[method],
-                                  max_input_tokens=max_input_tokens, max_new_tokens=args.max_new_tokens,
-                                  batch_size=args.batch_size, n=args.n)
+        result, scores = evaluate_method(method, args.base_model, test_ds, use_4bit=bit_map[method],
+                                           max_input_tokens=max_input_tokens, max_new_tokens=args.max_new_tokens,
+                                           batch_size=args.batch_size, n=args.n)
         results.append(result)
+        per_method_scores[method] = scores
 
     # Write CSV
     if results:
@@ -238,6 +240,21 @@ def main():
         print("\n=== FINAL RESULTS ===")
         for r in results:
             print(f"  {r['method']:6s} | ROUGE-L={r['rouge_l']:.4f} | VRAM={r['peak_vram_gb']:.2f}GB")
+
+    # Per-document scores, for paired significance testing across methods.
+    # Wide format: row i is the same document for every method, since each
+    # evaluate_method() call walks the identical test_ds with the same n_eff --
+    # column alignment is guaranteed without needing to store document IDs.
+    if per_method_scores:
+        scores_path = os.path.join("results", "per_example_scores.csv")
+        methods_present = list(per_method_scores.keys())
+        n_docs = len(next(iter(per_method_scores.values())))
+        with open(scores_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["doc_idx"] + methods_present)
+            for i in range(n_docs):
+                writer.writerow([i] + [per_method_scores[m][i] for m in methods_present])
+        print(f"[done] Per-example scores saved to {scores_path}")
 
 
 if __name__ == "__main__":
